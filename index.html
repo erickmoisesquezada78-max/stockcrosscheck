@@ -231,7 +231,9 @@
             try {
                 const response = await fetch(`https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${ticker}&outputsize=full&apikey=${API_KEY}`);
                 const data = await response.json();
-                if (data["Error Message"] || data.Note) throw new Error("Ticker no encontrado o límite de API alcanzado.");
+                if (data.Note) throw new Error("Límite de API alcanzado. Espera 1 minuto.");
+if (data["Error Message"]) throw new Error("Ticker no encontrado: " + data["Error Message"]);
+if (!data["Time Series (Daily)"]) throw new Error("No se recibieron datos. ¿Ticker válido de NYSE?");
                 const timeSeries = data["Time Series (Daily)"];
                 if (!timeSeries) throw new Error("No se recibieron datos.");
 
