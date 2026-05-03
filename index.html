@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Cross Check - Escáner Golden/Death Cross NYSE</title>
+    <meta name="description" content="Escáner gratuito de Golden Cross y Death Cross para acciones de la bolsa de Nueva York. Análisis técnico de medias móviles SMA50 y SMA200.">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: #0d1117;
+            color: #e6edf3;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        .container { max-width: 700px; width: 100%; }
+        header {
+            text-align: center;
+            padding: 40px 0 30px;
+            border-bottom: 1px solid #30363d;
+            margin-bottom: 30px;
+        }
+        header h1 {
+            font-size: 2.2em;
+            background: linear-gradient(135deg, #58a6ff, #3fb950);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+        }
+        header p { color: #8b949e; font-size: 1.05em; }
+        .search-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 25px;
+        }
+        .search-box input {
+            flex: 1;
+            padding: 14px 18px;
+            border-radius: 12px;
+            border: 2px solid #30363d;
+            background: #161b22;
+            color: #e6edf3;
+            font-size: 1.1em;
+            text-transform: uppercase;
+            transition: border 0.3s;
+        }
+        .search-box input:focus { outline: none; border-color: #58a6ff; }
+        .search-box button {
+            padding: 14px 28px;
+            border-radius: 12px;
+            border: none;
+            background: linear-gradient(135deg, #238636, #2ea043);
+            color: #fff;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.3s, transform 0.1s;
+        }
+        .search-box button:hover { opacity: 0.9; }
+        .search-box button:active { transform: scale(0.97); }
+        .result-card {
+            background: #161b22;
+            border: 2px solid #30363d;
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 20px;
+            text-align: center;
+            display: none;
+        }
+        .result-card.show { display: block; animation: fadeIn 0.4s; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .signal-icon { font-size: 4em; margin-bottom: 10px; }
+        .signal-text { font-size: 1.6em; font-weight: 700; margin-bottom: 5px; }
+        .signal-sub { color: #8b949e; margin-bottom: 20px; font-size: 0.95em; }
+        .sma-values {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+        }
+        .sma-box {
+            background: #0d1117;
+            border-radius: 12px;
+            padding: 16px 24px;
+            border: 1px solid #30363d;
+        }
+        .sma-box .label { font-size: 0.8em; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; }
+        .sma-box .value { font-size: 1.5em; font-weight: 700; margin-top: 4px; }
+        .sma50 .value { color: #58a6ff; }
+        .sma200 .value { color: #f0883e; }
+        .chart-container { position: relative; height: 300px; margin: 20px 0; }
+        canvas { width: 100% !important; }
+        .disclaimer {
+            margin-top: 15px;
+            padding: 12px;
+            background: #21262d;
+            border-radius: 8px;
+            font-size: 0.78em;
+            color: #8b949e;
+            text-align: left;
+            line-height: 1.5;
+        }
+        .cta-box {
+            margin-top: 15px;
+            padding: 18px;
+            background: linear-gradient(135deg, #1a2332, #161b22);
+            border: 1px solid #30363d;
+            border-radius: 12px;
+            text-align: center;
+        }
+        .cta-box p { margin-bottom: 10px; color: #bcc4d0; }
+        .cta-box a {
+            display: inline-block;
+            padding: 10px 22px;
+            background: #1f6feb;
+            color: #fff;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+        .cta-box a:hover { background: #388bfd; }
+        footer {
+            text-align: center;
+            padding: 30px;
+            color: #484f58;
+            font-size: 0.85em;
+        }
+        footer a { color: #58a6ff; text-decoration: none; }
+        .loading { color: #d2991d; margin: 15px 0; display: none; }
+        .loading.show { display: block; }
+        .error-msg { color: #f85149; margin: 10px 0; display: none; }
+        .error-msg.show { display: block; }
+        .blog-section {
+            margin-top: 40px;
+            padding: 25px;
+            background: #161b22;
+            border-radius: 16px;
+            border: 1px solid #30363d;
+        }
+        .blog-section h2 { margin-bottom: 18px; font-size: 1.3em; }
+        .blog-section ul { list-style: none; }
+        .blog-section li { padding: 10px 0; border-bottom: 1px solid #21262d; }
+        .blog-section li a { color: #58a6ff; text-decoration: none; font-size: 1.02em; }
+        .blog-section li a:hover { text-decoration: underline; }
+        .blog-section li span { color: #8b949e; font-size: 0.85em; margin-left: 10px; }
+        @media (max-width: 500px) {
+            .search-box { flex-direction: column; }
+            .sma-values { gap: 15px; }
+            header h1 { font-size: 1.6em; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📈 Stock Cross Check</h1>
+            <p>Escáner gratuito de Golden Cross y Death Cross para acciones de la NYSE</p>
+        </header>
+
+        <div class="search-box">
+            <input type="text" id="tickerInput" placeholder="Ej: AAPL, TSLA, KO..." maxlength="10" autocomplete="off">
+            <button onclick="scanTicker()">Escanear</button>
+        </div>
+
+        <div id="loading" class="loading">⏳ Consultando datos de mercado...</div>
+        <div id="errorMsg" class="error-msg"></div>
+
+        <div id="resultCard" class="result-card">
+            <div id="signalIcon" class="signal-icon"></div>
+            <div id="signalText" class="signal-text"></div>
+            <div id="signalSub" class="signal-sub"></div>
+            <div class="sma-values">
+                <div class="sma-box sma50">
+                    <div class="label">SMA 50</div>
+                    <div class="value" id="sma50Value">—</div>
+                </div>
+                <div class="sma-box sma200">
+                    <div class="label">SMA 200</div>
+                    <div class="value" id="sma200Value">—</div>
+                </div>
+            </div>
+            <div class="chart-container">
+                <canvas id="smaChart"></canvas>
+            </div>
+            <div class="disclaimer" id="disclaimerText"></div>
+            <div class="cta-box">
+                <p>📊 ¿Quieres un análisis completo de esta acción con soportes, resistencias y recomendación?</p>
+                <a href="https://www.fiverr.com/" target="_blank" rel="nofollow">Contrátame en Fiverr →</a>
+            </div>
+        </div>
+
+        <div class="blog-section">
+            <h2>📚 Aprende más</h2>
+            <ul>
+                <li><a href="blog/golden-cross.html">¿Qué es un Golden Cross y cómo usarlo?</a><span>5 min lectura</span></li>
+                <li><a href="blog/errores-inversor-novato.html">5 errores del inversor novato en NYSE</a><span>7 min lectura</span></li>
+                <li><a href="blog/dividendos-nyse.html">Top 10 acciones con dividendos crecientes en NYSE</a><span>6 min lectura</span></li>
+            </ul>
+        </div>
+
+        <footer>
+            <p>Stock Cross Check © 2026 · Herramienta educativa, no constituye asesoramiento financiero.</p>
+            <p>Datos proporcionados por <a href="https://www.alphavantage.co" target="_blank">Alpha Vantage</a></p>
+        </footer>
+    </div>
+
+    <script>
+        const API_KEY = "5ZXMETD7BWN2NK0J";
+        let myChart = null;
+
+        async function scanTicker() {
+            const ticker = document.getElementById("tickerInput").value.trim().toUpperCase();
+            const resultCard = document.getElementById("resultCard");
+            const loading = document.getElementById("loading");
+            const errorMsg = document.getElementById("errorMsg");
+
+            resultCard.classList.remove("show");
+            errorMsg.classList.remove("show");
+            if (!ticker) { errorMsg.textContent = "Por favor, introduce un ticker."; errorMsg.classList.add("show"); return; }
+            if (!/^[A-Z]{1,10}$/.test(ticker)) { errorMsg.textContent = "Formato inválido. Solo letras (ej: AAPL)."; errorMsg.classList.add("show"); return; }
+
+            loading.classList.add("show");
+            try {
+                const response = await fetch(`https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${ticker}&outputsize=full&apikey=${API_KEY}`);
+                const data = await response.json();
+                if (data["Error Message"] || data.Note) throw new Error("Ticker no encontrado o límite de API alcanzado.");
+                const timeSeries = data["Time Series (Daily)"];
+                if (!timeSeries) throw new Error("No se recibieron datos.");
+
+                const closes = Object.entries(timeSeries)
+                    .sort(([a], [b]) => new Date(a) - new Date(b))
+                    .map(([date, values]) => ({ date, close: parseFloat(values["4. close"]) }));
+
+                if (closes.length < 200) throw new Error("Se necesitan al menos 200 días de datos.");
+
+                const sma50 = calcSMA(closes.map(c => c.close), 50);
+                const sma200 = calcSMA(closes.map(c => c.close), 200);
+                const lastSMA50 = sma50[sma50.length - 1];
+                const lastSMA200 = sma200[sma200.length - 1];
+                const prevSMA50 = sma50[sma50.length - 2];
+                const prevSMA200 = sma200[sma200.length - 2];
+
+                document.getElementById("sma50Value").textContent = "$" + lastSMA50.toFixed(2);
+                document.getElementById("sma200Value").textContent = "$" + lastSMA200.toFixed(2);
+
+                let signal, icon, explanation;
+                if (prevSMA50 <= prevSMA200 && lastSMA50 > lastSMA200) {
+                    signal = "GOLDEN CROSS 🟢"; icon = "📈"; explanation = "Señal alcista. La media de 50 días acaba de cruzar por encima de la de 200 días. Posible inicio de tendencia alcista.";
+                } else if (prevSMA50 >= prevSMA200 && lastSMA50 < lastSMA200) {
+                    signal = "DEATH CROSS 🔴"; icon = "📉"; explanation = "Señal bajista. La media de 50 días acaba de cruzar por debajo de la de 200 días. Posible inicio de tendencia bajista.";
+                } else if (lastSMA50 > lastSMA200) {
+                    signal = "Tendencia Alcista (sin cruce reciente)"; icon = "📊"; explanation = "Tendencia alcista establecida. SMA50 por encima de SMA200, sin cruce reciente.";
+                } else {
+                    signal = "Tendencia Bajista (sin cruce reciente)"; icon = "📊"; explanation = "Tendencia bajista establecida. SMA50 por debajo de SMA200, sin cruce reciente.";
+                }
+
+                document.getElementById("signalIcon").textContent = icon;
+                document.getElementById("signalText").textContent = signal;
+                document.getElementById("signalSub").textContent = new Date().toLocaleDateString("es-ES", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+                document.getElementById("disclaimerText").textContent = "⚠️ " + explanation + " Esto no es asesoramiento financiero. Haz tu propia investigación antes de invertir.";
+
+                const chartData = closes.slice(-200);
+                drawChart(chartData, sma50.slice(-200), sma200.slice(-200), ticker);
+                resultCard.classList.add("show");
+            } catch (err) {
+                errorMsg.textContent = "❌ " + err.message;
+                errorMsg.classList.add("show");
+            } finally {
+                loading.classList.remove("show");
+            }
+        }
+
+        function calcSMA(data, period) {
+            const result = [];
+            for (let i = period - 1; i < data.length; i++) {
+                const sum = data.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0);
+                result.push(sum / period);
+            }
+            return new Array(period - 1).fill(null).concat(result);
+        }
+
+        function drawChart(data, sma50, sma200, ticker) {
+            if (myChart) myChart.destroy();
+            const ctx = document.getElementById("smaChart").getContext("2d");
+            const labels = data.map(d => d.date);
+            const closes = data.map(d => d.close);
+
+            myChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        { label: 'Precio cierre', data: closes, borderColor: '#e6edf3', borderWidth: 1.5, pointRadius: 0, tension: 0.1 },
+                        { label: 'SMA 50', data: sma50, borderColor: '#58a6ff', borderWidth: 2, pointRadius: 0, tension: 0.1 },
+                        { label: 'SMA 200', data: sma200, borderColor: '#f0883e', borderWidth: 2, pointRadius: 0, tension: 0.1 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: { display: true, text: `${ticker} - Últimos 200 días`, color: '#e6edf3' },
+                        legend: { labels: { color: '#e6edf3' } }
+                    },
+                    scales: {
+                        x: { ticks: { color: '#8b949e', maxTicksLimit: 8 }, grid: { color: '#21262d' } },
+                        y: { ticks: { color: '#8b949e' }, grid: { color: '#21262d' } }
+                    }
+                }
+            });
+        }
+
+        document.getElementById("tickerInput").addEventListener("keydown", function(e) {
+            if (e.key === "Enter") scanTicker();
+        });
+    </script>
+</body>
+</html>
